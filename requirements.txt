@@ -1,0 +1,5 @@
+johnsnowlabs==5.3.6
+sqlalchemy
+psycopg2-binary
+seaborn
+matplotlib
