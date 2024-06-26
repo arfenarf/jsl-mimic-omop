@@ -1,4 +1,4 @@
-# JSL Task Solution
+# John Snow Labs (JSL) Task Solution
 
 ## Assigned Task
 
@@ -24,8 +24,10 @@ established before attaching extracted information to it.
 
 In this document, I will describe a recommended approach of converting
 structured data from the MIMIC III dataset to OMOP and then generating
-NLP-Derived information to attach to it. The core *technical* challenges surround
-correctly locating and recoding healthcare entities in text. The core
+NLP-Derived information to attach to it. The Extract/Transform/Load (ETL) process
+used for structured data was supplied in an MIT
+[github repository](https://github.com/MIT-LCP/mimic-omop). The core *technical*
+challenges surround correctly locating and recoding healthcare entities in text. The core
 *business* challenge is determining what of this information can be trusted
 and for what purposes.
 
@@ -65,7 +67,7 @@ Reasons for including NLP information include:
 * adding information that is not present in the structured data (such as
   non-Alcohol Use Disorder levels of drinking)
 * identifying other Social Determinants of Health
-* (in the dentistry use case) indentifying all non-dental diagnoses and
+* (in the dentistry use case) identifying all non-dental diagnoses and
   conditions because they appear nowhere else
 * locating information about care providers missing in structured data
 * adding family history
@@ -200,7 +202,7 @@ Observation as far as OMOP Standard Concepts are concerned.
 * `note_nlp` is a critical table for this work. Each row gets a specific concept
 extracted by an NLP process, along with modifiers and metadata describing the
 extraction process. In many OMOP communities, NLP-derived data stops here.
-In the migration we envision for this paper, in which NLP-derived data is
+In the migration we envision here, in which NLP-derived data is
 destined for the main clinical tables, we need to store enough information to
 support a final translation. (Primary amongst the information we've been working
 with - the `measurement` table is a complex collection of information about both
@@ -224,6 +226,15 @@ it would be very difficult to know whether the presence of an address should be
 attributed to a patient, a hospital location, or the site of a car crash. I am
 inclined to leave this collection of information in the purview of a customer's
 internal institutional knowledge.
+
+If we are imputing `provider` from NLP results, a logical approach would be to
+detect person entity information from note metadata and use this as a reference
+framework for NLP code that identifies person names in the note itself. Logic
+must separate patients from providers, and work to impute the identity of a
+provider who is referred to only by title and surname. For example, it is
+logical that in a note with "Susan Smith" listed as the provider in note
+metadata, "Dr Smith" probably refers to that person. Without a firm context like
+this, however, surnames alone are of limited value.
 
 ##### Standardized Vocabularies
 
@@ -275,7 +286,7 @@ would like to refine it to ensure that information is calculated efficiently (an
 not repeatedly).
 
 * I chose to use `ner-jsl` but am concerned about properly filtering entity types
-* I Routers to send true `DRUG` information over to an RxNorm resolver, and
+* I used Routers to send true `DRUG` information over to an RxNorm resolver, and
   just about everything else to a SNOMED-CT Observation resolver
 * Early experiments with `TEST`s were unsatisfactory, as all kinds of acronyms
   were getting context-less entity matches. I want to handle test information
@@ -372,9 +383,27 @@ is an outright conflict in information, we should investigate.
 
 ## Conclusion
 
-Many aspects of the data stored in the OMOP CDM can be obtained from clinical
-notes, but the extracted data is more trustworthy and meaningful when blended
-with structured data during the ETL. JSL tools are able to collect key
-information from clinical notes for addition to the OMOP `NOTE_NLP` table. Rules
-for what information in this table might migrate to the core clinical concept
-tables must be developed with the client, bearing in mind their end purpose.
+It is entirely possible to build out an OMOP CDM dataset using only the
+information in clinical notes, but the extracted data is more trustworthy and
+meaningful when blended with structured data during the ETL. Aside from the
+usual NLP risks of mis-attributing information and mis-identifying entities, the
+information gathered with JSL's entity detection, concept identification, and
+attribution models can populate the core tables such as
+
+* `person`
+* `condition_occurrence`
+* `observation`
+* `drug_exposure`
+* `measurement`
+* `procedure_occurrence`
+
+In the absence of structured data, other key tables such as `visit_occurrence`
+and `provider` would require carefully-documented logic to impute information
+from note metadata.
+
+Our recommended approach is to build the dataset out with known-good structured
+data and then supplement it with information from clinical notes. All quality
+NLP-derived information can be stored in the OMOP `NOTE_NLP` table. After that,
+rules for what information in this table might migrate to the core clinical
+concept tables must be developed with the client, bearing in mind their end
+purpose.
